@@ -1,6 +1,8 @@
 # AttendGuard – Attendance Analytics Platform
 Open `index.html` in Chrome or Edge (internet needed once for fonts and the PDF reader). No build step.
 
+#🌐 Live Demo Link: attendguard-student-attendance.netlify.app
+
 ## New in this version
 - Calendar (semester months, holidays, planned leave, per-day skip verdicts, weekly load), click to mark leave/holiday.
 - "Should I skip?" table for the next class days and an attend-first priority list.
