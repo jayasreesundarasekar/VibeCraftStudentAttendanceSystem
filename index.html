@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AttendGuard – Attendance Analytics Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script></head>
+<body>
+<header class="hd"><div class="wrap hb"><div class="brand"><span class="logo">🎓</span><div>AttendGuard<small>Attendance analytics &amp; detention prevention</small></div></div>
+<nav id="tabs"><button data-t="dash" class="on">Dashboard</button><button data-t="cal">Calendar</button><button data-t="att">My attendance</button><button data-t="plan">Leave planner</button><button data-t="ltr">Letters</button><button data-t="ai">AI assistant</button><button data-t="cfg">Settings</button></nav></div></header>
+<main class="wrap">
+<section class="card ctrl"><label>Class section<select id="sec"></select></label><label>Today<input type="date" id="today"></label>
+<label>Detention below (%)<input type="number" id="dt" min="1" max="100"></label><label>Required target (%)<input type="number" id="tg" min="1" max="100"></label><label>Safe from (%)<input type="number" id="wn" min="1" max="100"></label>
+<label>Holidays (YYYY-MM-DD, comma separated)<input id="hol"></label></section>
+<section id="dash" class="tab on"></section>
+<section id="cal" class="tab"></section>
+<section id="att" class="tab"></section>
+<section id="plan" class="tab"></section>
+<section id="ltr" class="tab"></section>
+<section id="ai" class="tab"></section>
+<section id="cfg" class="tab"></section>
+</main>
+<script src="data.js"></script><script src="app.js"></script><script src="extras.js"></script><script src="letters.js"></script><script src="assistant.js"></script><script src="boot.js"></script>
+</body></html>

@@ -1,0 +1,53 @@
+'use strict';
+const KEY='attendguard.pro.v3',MON=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const VER={ok:['Safe to skip','#12a578'],risk:['Skip only above detention line','#f08c00'],no:["Don't skip",'#e03150']};
+const fd=ds=>{const d=pd(ds);return `${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()}`},short=n=>n.length>26?n.slice(0,24)+'…':n;
+/* persistence */
+function save(){try{St.store[St.sec]=St.att;localStorage.setItem(KEY,JSON.stringify({sec:St.sec,store:St.store,leaves:[...St.leaves],hol:[...St.hol],dt:St.dt,tg:St.tg,wn:St.wn,prof:St.prof,odp:St.odp,custom:St.custom}))}catch(e){}}
+function load(){try{const j=JSON.parse(localStorage.getItem(KEY)||'null');if(!j)return;Object.assign(St,{store:j.store||{},leaves:new Set(j.leaves||[]),hol:new Set(j.hol||[]),dt:j.dt||75,tg:j.tg||90,wn:j.wn||92,prof:j.prof||{},odp:j.odp!==false,custom:j.custom||{}});Object.assign(TIMETABLES,St.custom);if(TIMETABLES[j.sec])St.sec=j.sec;St.att=St.store[St.sec]||{}}catch(e){}}
+function dl(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:type||'text/plain'}));a.download=name;a.click()}
+function gmail(to,su,body,cc){const u=`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to||'')}&cc=${encodeURIComponent(cc||'')}&su=${encodeURIComponent(su)}&body=${encodeURIComponent(body)}`;window.open(u,'_blank','noopener')}
+/* verdicts: is it safe to skip a given day? */
+function leaveMiss(){const m={},from=St.today<START?START:St.today;St.leaves.forEach(d=>{if(d>=from){const c=dayCounts(d);for(const k in c)m[k]=(m[k]||0)+c[k]}});return m}
+function verdict(a,d){const c=dayCounts(d);if(!Object.keys(c).length)return null;const m=leaveMiss(),inL=St.leaves.has(d);
+  const ok=key=>a.rows.every(r=>!c[r.k]||r[key]-(m[r.k]||0)>=(inL?0:c[r.k]));return ok('skipTG')?'ok':ok('skipDT')?'risk':'no'}
+function outlookHTML(a){const L=dates(St.today<START?START:St.today,END).slice(0,7);
+  return`<div class="card"><h3>Next class days — should I skip?</h3><div class="scroll"><table><tr><th>Day</th><th>Classes</th><th>Verdict</th></tr>${L.map(x=>{const V=VER[verdict(a,x.d)];return`<tr><td><b>${DN[pd(x.d).getDay()]}</b> ${x.d}</td><td>${Object.entries(x.c).map(([k,n])=>esc(short(tt().subs[k]))+(n>1?' ×'+n:'')).join(', ')}</td><td><span class="pill" style="background:${V[1]}">${V[0]}</span></td></tr>`}).join('')}</table></div><p class="note">Assumes you attend everything else and counts your planned leave already.</p></div>`}
+function priorityHTML(a){const o={irr:0,det:1,danger:2,warn:3,safe:4},L=[...a.rows].sort((x,y)=>o[x.st]-o[y.st]||x.cur-y.cur).slice(0,6);
+  const act=r=>r.st==='irr'?'Attend every class and talk to your class advisor about condonation.':r.st==='det'?`Attend at least ${r.nDT} of the ${r.R} remaining classes to avoid detention.`:r.st==='danger'?`Attend the next ${r.rec} classes in a row to get back to ${St.tg}%.`:`${sgn(r.skipTG)} safe skip(s) left at ${St.tg}%.`;
+  return`<div class="card"><h3>Attend-first priority list</h3>${L.map(r=>`<div class="prio"><span class="pill" style="background:${ST[r.st][1]}">${ST[r.st][0]}</span><div><b>${esc(r.name)}</b> — ${f1(r.cur)}%<br><span class="note">${act(r)}</span></div></div>`).join('')}</div>`}
+function summaryText(){const a=analyze();return`AttendGuard summary (${fd(St.today)})\nStudent: ${St.prof.name||'-'} (${St.prof.reg||'-'}) · ${St.sec}\nOverall attendance: ${f1(a.ov)}% (${a.TA}/${a.TT}) · Detention risk: ${a.risk}\nTarget ${St.tg}% · Detention below ${St.dt}% · Classes left: ${a.left}\n\n`+a.rows.map(r=>`- ${r.name}: ${f1(r.cur)}% [${ST[r.st][0]}] · can skip ${sgn(r.skipTG)} · must attend ${r.nDT>r.R?'impossible':r.nDT} to avoid detention`).join('\n')}
+function exportCsv(){const a=analyze(),q=v=>'"'+String(v).replace(/"/g,'""')+'"';dl(`attendance-${St.sec.replace(/\s+/g,'_')}.csv`,['Subject,Conducted,Attended (incl. OD),Attendance %,Classes left,Must attend for detention limit,Must attend for target,Can skip (target),Can skip (detention limit),Status'].concat(a.rows.map(r=>[q(r.name),r.T,r.A,f1(r.cur),r.R,r.nDT,r.nTG,r.skipTG,r.skipDT,q(ST[r.st][0])].join(','))).join('\n'),'text/csv')}
+function toolbar(){return`<div class="row" style="margin-bottom:12px;justify-content:flex-end"><button class="g fix" id="tbMail">✉ Email summary (Gmail)</button><button class="g fix" id="tbCsv">⬇ Export CSV</button><button class="g fix" id="tbPrint">🖨 Print report</button></div>`}
+function bindToolbar(){$('tbMail').onclick=()=>gmail(St.prof.pemail||'',`Attendance summary – ${St.prof.name||St.sec}`,summaryText());$('tbCsv').onclick=exportCsv;$('tbPrint').onclick=()=>window.print()}
+/* calendar */
+function renderCal(){const a=analyze(),mo=[7,8,9,10];
+  let h=`<div class="card"><div class="row"><label>Clicking a date marks it as<select id="cm"><option value="leave">Planned leave</option><option value="hol">Holiday (no classes)</option></select></label></div><div class="legend" style="margin-top:8px"><span>■ blue: past class day</span><span>■ purple: planned leave</span><span>■ yellow: holiday</span><span style="color:var(--ok)">● safe to skip</span><span style="color:var(--wa)">● only above ${St.dt}%</span><span style="color:var(--det)">● don't skip</span></div></div><div class="two">`;
+  mo.forEach(m=>{const first=(new Date(2026,m,1).getDay()+6)%7,n=new Date(2026,m+1,0).getDate();let c='';for(let i=0;i<first;i++)c+='<div></div>';
+    for(let d=1;d<=n;d++){const ds=iso(new Date(2026,m,d)),cc=dayCounts(ds),k=tot({c:cc}),out=ds<START||ds>END,past=ds<St.today,v=!out&&!past&&k?verdict(a,ds):null,hol=St.hol.has(ds);
+      c+=`<div class="cd${out?' out':''}${hol?' hol':''}${St.leaves.has(ds)?' lv':''}${past&&k?' past':''}${ds===St.today?' td':''}" data-d="${ds}" title="${esc(Object.entries(cc).map(([q,n2])=>tt().subs[q]+(n2>1?' ×'+n2:'')).join(', '))}"><b>${d}</b><span>${hol?'Holiday':k?k+' cls':''}</span>${v?`<i style="background:${VER[v][1]}"></i>`:''}</div>`}
+    h+=`<div class="card"><h3>${MON[m]} 2026</h3><div class="cal">${['M','T','W','T','F','S','S'].map(x=>`<div class="ch">${x}</div>`).join('')}${c}</div></div>`});
+  const wk=[1,2,3,4,5,6].map(i=>[DN[i],(tt().days[DN[i]]||'').split(' ').filter(x=>x!=='-').length]),mx=Math.max(...wk.map(x=>x[1]),1),top=wk.reduce((p,q)=>q[1]>p[1]?q:p);
+  h+=`</div><div class="card"><h3>Weekly class load</h3>${wk.map(x=>`<div class="wk"><b style="width:36px">${x[0]}</b><u style="width:${x[1]/mx*70}%"></u> ${x[1]} periods</div>`).join('')}<p class="note">${top[0]} is your heaviest day: skipping it costs ${top[1]} classes at once.</p></div>`;
+  $('cal').innerHTML=h;
+  $('cal').querySelectorAll('.cd[data-d]').forEach(e=>e.onclick=()=>{const d=e.dataset.d,m=$('cm').value;if(d<START||d>END)return;
+    if(m==='hol'){St.hol.has(d)?St.hol.delete(d):St.hol.add(d);$('hol').value=[...St.hol].join(', ')}else{if(d<St.today||!tot({c:dayCounts(d)}))return;St.leaves.has(d)?St.leaves.delete(d):St.leaves.add(d)}
+    renderAll();$('cm').value=m})}
+/* settings */
+function importTT(text,name){const by={};text.split(/\r?\n/).map(l=>l.split(',').map(x=>x.trim())).forEach(r=>{if(r.length<2||!r[0]||/^(section|day)$/i.test(r[0]))return;let sec,day,sub,per;
+    if(r.length>=3&&!/^(mon|tue|wed|thu|fri|sat)/i.test(r[0]))[sec,day,sub,per]=r;else{sec=name||'My section';[day,sub,per]=r}
+    if(!day||!sub)return;const dd=day[0].toUpperCase()+day.slice(1,3).toLowerCase();((by[sec]=by[sec]||{})[dd]=by[sec][dd]||[]).push([sub,+per||0])});
+  const LET='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';let n=0;
+  for(const sec in by){const subs={},days={},idx={};for(const d in by[sec]){const row=Array(9).fill('-');by[sec][d].forEach(([s,p])=>{if(!idx[s]){idx[s]=LET[Object.keys(idx).length%52];subs[idx[s]]=s}let i=p>=1&&p<=9?p-1:row.indexOf('-');if(i>=0)row[i]=idx[s]});days[d]=row.join(' ')}
+    TIMETABLES[sec]=St.custom[sec]={term:'Custom import',subs,days};n++}return n}
+function renderSet(){$('cfg').innerHTML=`<div class="two"><div class="card"><h3>Preferences</h3><label class="tgl"><input type="checkbox" id="odp" ${St.odp?'checked':''}> Count On-Duty (OD) classes as present</label><p class="note">Enter OD classes in the "My attendance" table. Ask your college whether OD counts towards the 75% rule.</p>
+  <label style="margin-top:12px">Parent / guardian email (for summary emails)<input id="pem" type="email" value="${esc(St.prof.pemail||'')}"></label><div class="row" style="margin-top:10px"><button class="g" id="cs1">✉ Email summary via Gmail</button></div></div>
+  <div class="card"><h3>Your data</h3><div class="row"><button class="g" id="cs2">Export analysis (CSV)</button><button class="g" id="cs3">Backup (JSON)</button><button class="g" id="cs4">Restore backup</button><button class="g" id="cs5" style="color:var(--det);border-color:var(--det)">Reset everything</button></div><input type="file" id="rf" accept=".json" style="display:none"><p class="note">Everything is stored only in this browser. Nothing is uploaded.</p></div></div>
+  <div class="card"><h3>Import your own timetable (CSV)</h3><p class="note">Rows: <code>section,day,subject,period</code> (period 1–9 is optional). Or <code>day,subject,period</code> with a section name below.</p><div class="row"><label>Section name (if not in file)<input id="tn" placeholder="My section"></label><label>CSV file<input type="file" id="tf" accept=".csv,.txt"></label></div><label style="margin-top:8px">…or paste<textarea id="tp" placeholder="Mon,Data Structures,1"></textarea></label><button class="g" id="tgo" style="margin-top:8px">Import timetable</button><div class="log" id="tlog"></div></div>`;
+  $('odp').onchange=()=>{St.odp=$('odp').checked;renderAll();renderAtt()};$('pem').oninput=()=>{St.prof.pemail=$('pem').value;save()};
+  $('cs1').onclick=()=>gmail(St.prof.pemail||'',`Attendance summary – ${St.prof.name||St.sec}`,summaryText());$('cs2').onclick=exportCsv;
+  $('cs3').onclick=()=>{save();dl('attendguard-backup.json',localStorage.getItem(KEY)||'{}','application/json')};$('cs4').onclick=()=>$('rf').click();
+  $('rf').onchange=async e=>{try{JSON.parse(await e.target.files[0].text());localStorage.setItem(KEY,await e.target.files[0].text());location.reload()}catch(x){alert('Not a valid backup file')}};
+  $('cs5').onclick=()=>{if(confirm('Delete all saved data in this browser?')){localStorage.removeItem(KEY);location.reload()}};
+  const go=t=>{const n=importTT(t,$('tn').value.trim());$('tlog').textContent=n?`Imported ${n} section(s). Pick it from the Class section list.`:'No valid rows found.';if(n){fillSecs();save()}};
+  $('tgo').onclick=()=>go($('tp').value);$('tf').onchange=async e=>go(await e.target.files[0].text())}
